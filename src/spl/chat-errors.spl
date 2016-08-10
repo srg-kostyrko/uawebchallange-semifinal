@@ -1,0 +1,45 @@
+(module "chat-errors" (stream h)
+  (all
+    (define (render webrtc)
+      (all
+        (stream:combine
+          (lambda (errors$ self)
+            (all
+              (if (stream:get errors$)
+                (h:div "errors section group" (hash-map)
+                  (array-map
+                    (lambda (error)
+                      (all
+                        (if error
+                          (if (. "name" error)
+                            (if (= "PermissionDeniedError" (. "name" error))
+                              (render-error "Відсутній доступ до камери")
+                              (render-error (. "name" error))
+                            )
+                            (render-error error)
+                          )
+
+                        )
+                      )
+                    )
+                    (stream:get-all errors$)
+                  )
+                )
+                (h:text "")
+              )
+            )
+          )
+          (array (. "errors$" webrtc))
+          1
+        )
+      )
+    )
+    (define (render-error text)
+      (h:div "error col" (hash-map)
+        (array
+          (h:text text)
+        )
+      )
+    )
+  )
+)

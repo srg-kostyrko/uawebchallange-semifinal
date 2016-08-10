@@ -1,0 +1,71 @@
+(module "chat-room-view" (stream h)
+  (all
+    (define (render webrtc)
+      (all
+        (set room-input$ (stream:create))
+        (set room-button$ (stream:create))
+        (set room-input-text$
+          (stream:map
+            (lambda (e)
+              (if (not (? e))
+                (. "value" (. "target" e))
+              )
+            )
+            room-input$
+          )
+        )
+        (stream:combine
+          (lambda (text button)
+            (all
+              (if (not (? (stream:get button)))
+                (if (stream:get text)
+                  (stream:set-value (. "create-room$" webrtc) (stream:get text))
+                  (stream:set-value (. "create-room$" webrtc) (uuid))
+                )
+              )
+            )
+          )
+          (array room-input-text$ room-button$)
+        )
+        (stream:combine
+          (lambda (room$ self)
+            (all
+              (if (stream:get room$)
+                (h:div "room-info" (hash-map)
+                  (array
+                    (h:text (concat "Кімната: " (stream:get room$)))
+                    (h:br)
+                    (h:text (concat "Посилання для підключення: " (location-origin) "?" (stream:get room$)))
+                  )
+                )
+                (h:div "room-form" (hash-map)
+                  (array
+                    (h:h2 "" (hash-map) (array (h:text "Створити кімнату")))
+                    (h:input ""
+                      (hash-map
+                        (on (hash-map (change room-input$)))
+                        (attrs (hash-map (type "text")))
+                      )
+                    )
+                    (h:button "create"
+                      (hash-map
+                        (on
+                          (hash-map
+                            (click room-button$)
+                          )
+                        )
+                      )
+                      (array (h:text "Створити!"))
+                    )
+                  )
+                )
+              )
+            )
+          )
+          (array (. "room$" webrtc))
+          1
+        )
+      )
+    )
+  )
+)

@@ -1,0 +1,13 @@
+(module "v-node" ()
+  (all
+    (define (create tag cls data children)
+      (hash-map
+        (tag tag)
+        (cls cls)
+        (data data)
+        (children children)
+        (key (hash-sum (array tag)))
+      )
+    )
+  )
+)

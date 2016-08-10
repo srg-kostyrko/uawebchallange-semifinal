@@ -1,0 +1,47 @@
+(module "chat" (app stream h webrtc chat-room-view chat-local-video chat-remote-video chat-errors)
+  (all
+    (define (start container-id)
+      (app:create
+        (lambda ()
+          (all
+            (set webrtc (webrtc:init))
+            (stream:combine
+              (lambda (errors-view$ room-view$ local-video$ remote-video$)
+                (all
+                  (h:div "app" (hash-map)
+                    (array
+                      (stream:get errors-view$)
+                      (h:div "chat section group" (hash-map)
+                        (array
+                          (h:div "col span_3_of_4" (hash-map)
+                            (array
+                              (stream:get remote-video$)
+                            )
+                          )
+                          (h:div "col span_1_of_4" (hash-map)
+                            (array
+                              (stream:get room-view$)
+                              (stream:get local-video$)
+                            )
+                          )
+                        )
+                      )
+                    )
+                  )
+                )
+              )
+              (array
+                (chat-errors:render webrtc)
+                (chat-room-view:render webrtc)
+                (chat-local-video:render webrtc)
+                (chat-remote-video:render webrtc)
+              )
+              1
+            )
+          )
+        )
+        container-id
+      )
+    )
+  )
+)

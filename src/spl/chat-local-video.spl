@@ -1,0 +1,31 @@
+(module "chat-local-video" (stream h)
+  (all
+    (define (render webrtc)
+      (all
+        (stream:combine
+          (lambda (video$ self)
+            (all
+              (if (stream:get video$)
+                (h:div "local-video" (hash-map)
+                  (array
+                    (h:video "local-video"
+                      (hash-map
+                        (attrs (hash-map
+                          (src (object-url (stream:get video$)))
+                          (autoplay 1)
+                        ))
+                      )
+                    )
+                  )
+                )
+                (h:text "Очікую доступ до камери...")
+              )
+            )
+          )
+          (array (. "local-video$" webrtc))
+          1
+        )
+      )
+    )
+  )
+)

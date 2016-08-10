@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>WebRTC chat - UA Web Challenge</title>
+    <link rel="stylesheet" href="./css/html5reset.css" />
+    <link rel="stylesheet" href="./css/col.css" />
+    <link rel="stylesheet" href="./css/4cols.css" />
+    <link rel="stylesheet" href="./css/3cols.css" />
+    <link rel="stylesheet" href="./css/app.css" />
+  </head>
+  <body>
+    <div id="app">
+
+    </div>
+    <script type="text/spl">
+      (module "init" (chat)
+        (all
+          (chat:start "app")
+        )
+      )
+    </script>
+    <script src="./adapter.js"></script>
+    <script src="./dist/bundle.js"></script>
+  </body>
+</html>

@@ -1,0 +1,331 @@
+(module "webrtc" (stream)
+  (all
+    (set connection (webrtc-signaling-connection))
+    (set peers (array))
+    (set errors$ (stream:create))
+    (set connected$ (stream:create))
+    (set local-video$ (stream:create))
+    (set remote-video$ (stream:create))
+    (set messages$ (stream:create))
+    (set messages-to-send$ (stream:create))
+    (set room$ (stream:create))
+    (set join-room$ (stream:create (location-search)))
+    (set create-room$ (stream:create))
+    (set leaving$ (stream:create))
+    (set removed-video$ (stream:create))
+
+    (define (init)
+      (all
+        (.call "on" connection "connect"
+          (cb
+            (lambda () (stream:set-value connected$ (.call "getSessionid" connection)))
+          )
+        )
+        (user-media
+          (stream:callback local-video$)
+          (stream:callback errors$)
+        )
+
+        (.call "on" connection "message"
+          (stream:callback messages$)
+        )
+
+        (stream:map
+          (lambda (message)
+            (all
+              (.call "emit" connection "message" message)
+            )
+          )
+          messages-to-send$
+        )
+
+        (stream:map
+          (lambda (message)
+            (if (not (? message))
+              (all
+                (if (= "offer" (. "type" message))
+                  (all
+                    (set peer
+                      (array-first
+                        (lambda (p)
+                          (= (. "sid" p) (. "sid" message))
+                        )
+                        peers
+                      )
+                    )
+                    (if (not peer)
+                      (all
+                        (set peer
+                          (create-peer
+                            (. "from" message)
+                            (. "sid" message)
+                          )
+                        )
+                        (push peer peers)
+                      )
+                    )
+                    (handle-message peer message)
+                  )
+                  (array-map
+                    (lambda (peer)
+                      (all
+                        (if (. "sid" message)
+                          (if (= (. "sid" peer) (. "sid" message))
+                            (handle-message peer message)
+                          )
+                          (handle-message peer message)
+                        )
+                      )
+                    )
+                    peers
+                  )
+                )
+              )
+            )
+          )
+          messages$
+        )
+
+        (stream:map
+          (lambda (name)
+            (all
+              (if (not (? name))
+                (all
+                  (stream:set-value room$ name)
+                  (.call "emit" connection "join" name
+                    (cb
+                      (lambda (err room-description)
+                        (all
+                          (if (? err)
+                            (all
+                              (array-map
+                                (lambda (id)
+                                  (all
+                                    (set peer
+                                      (create-peer
+                                        id
+                                        (uuid)
+                                      )
+                                    )
+                                    (push peer peers)
+                                    (peer-start peer)
+                                  )
+                                )
+                                (hash-keys (. "clients" room-description))
+                              )
+                            )
+                            (stream:set-value errors$ err)
+                          )
+                        )
+                      )
+                    )
+                  )
+                )
+              )
+            )
+          )
+          join-room$
+        )
+
+
+        (stream:map
+          (lambda (name)
+            (all
+              (if (not (? name))
+                (.call "emit" connection "create" name
+                  (cb
+                    (lambda (err name)
+                      (if (? err)
+                        (all
+                          (stream:set-value room$ name)
+                          (location-update name)
+                        )
+                        (stream:set-value errors$ err)
+                      )
+                    )
+                  )
+                )
+              )
+            )
+          )
+          create-room$
+        )
+
+        (hash-map
+          (room$ room$)
+          (errors$ errors$)
+          (join-room$ join-room$)
+          (create-room$ create-room$)
+          (local-video$ local-video$)
+          (remote-video$
+            (stream:combine
+              (lambda (remote$ removed$)
+                (array-diff (stream:get-all remote$) (stream:get-all removed$))
+              )
+              (array remote-video$ removed-video$)
+            )
+          )
+        )
+      )
+    )
+
+    (define (create-peer id sid)
+      (all
+        (set peer
+          (hash-map
+            (id id)
+            (sid sid)
+            (pc (peer-connection))
+          )
+        )
+        (stream:map
+          (lambda (video)
+            (if (not (? video))
+              (.call "addStream" (. "pc" peer) (stream:get local-video$))
+            )
+          )
+          local-video$
+        )
+        (.= "onaddstream"
+          (cb
+            (lambda (event)
+              (all
+                (set str (. "stream" event))
+                (.= "stream" str peer)
+                (stream:set-value remote-video$ str)
+              )
+            )
+          )
+          (. "pc" peer)
+        )
+        (.= "oniceconnectionstatechange"
+          (cb
+            (lambda (event)
+              (all
+                (if (= "disconnected" (. "iceConnectionState" (. "target" event)))
+                  (all
+                    (set peer
+                      (array-first
+                        (lambda (peer)
+                          (all
+                            (same (. "pc" peer) (. "target" event))
+                          )
+                        )
+                        peers
+                      )
+                    )
+                    (if (and (peer) (. "stream" peer))
+                      (stream:set-value removed-video$ (. "stream" peer))
+                    )
+                  )
+                )
+              )
+            )
+          )
+          (. "pc" peer)
+        )
+        (.= "onicecandidate"
+          (cb
+            (lambda (event)
+              (all
+                (if (not (? (. "candidate" event)))
+                  (stream:set-value messages-to-send$
+                    (create-message peer "candidate" (. "candidate" event))
+                  )
+                )
+              )
+            )
+          )
+          (. "pc" peer)
+        )
+
+        (peer)
+      )
+    )
+
+    (define (peer-start peer)
+      (all
+        (webrtc-offer (. "pc" peer)
+          (cb
+            (lambda (offer)
+              (if (not (? offer))
+                (all
+                  (stream:set-value messages-to-send$
+                    (create-message
+                      peer
+                      "offer"
+                      offer
+                    )
+                  )
+                )
+              )
+            )
+          )
+          (stream:callback errors$)
+        )
+      )
+    )
+
+    (define (handle-message peer message)
+      (all
+        (if (= (. "type" message) "offer")
+          (handle-offer peer (. "payload" message))
+          (if (= (. "type" message) "answer")
+            (handle-answer peer (. "payload" message))
+            (if (= (. "type" message) "candidate")
+              (process-ice peer (. "payload" message))
+              ()
+            )
+          )
+        )
+      )
+    )
+
+    (define (handle-offer peer offer)
+      (all
+        (.call "setRemoteDescription" (. "pc" peer) (webrtc-parse offer) (cb
+          (lambda ()
+            (webrtc-answer (. "pc" peer)
+              (cb
+                (lambda (answer)
+                  (all
+                    (stream:set-value messages-to-send$
+                      (create-message
+                        peer
+                        "answer"
+                        answer
+                      )
+                    )
+                  )
+                )
+              )
+              (stream:callback error$)
+            )
+          )
+        ))
+      )
+    )
+
+    (define (handle-answer peer answer)
+      (all
+        (.call "setRemoteDescription" (. "pc" peer) (webrtc-parse answer))
+      )
+    )
+
+    (define (process-ice peer update)
+      (all
+        (.call "addIceCandidate" (. "pc" peer) (peer-candidate update))
+      )
+    )
+
+    (define (create-message peer type payload)
+      (hash-map
+        (to (. "id" peer))
+        (sid (. "sid" peer))
+        (roomType "video")
+        (type type)
+        (payload payload)
+      )
+    )
+  )
+)

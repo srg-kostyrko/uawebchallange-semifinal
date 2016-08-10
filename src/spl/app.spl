@@ -1,0 +1,28 @@
+(module "app" (vdom v-node h stream dom)
+  (all
+    (define (create main container-id)
+      (all
+        (set container (dom:get-by-id container-id))
+        (set initial-v-node (h:div "empty"))
+        (vdom:create-element initial-v-node)
+        (dom:append-child container (. "elm" initial-v-node))
+        (set main-stream (apply main))
+        (stream:scan
+          (lambda (old-v-node v-node)
+            (all
+              (if (not (? v-node))
+                (all
+                  (vdom:patch old-v-node v-node)
+                  (v-node)
+                )
+                (old-v-node)
+              )
+            )
+          )
+          initial-v-node
+          main-stream
+        )
+      )
+    )
+  )
+)

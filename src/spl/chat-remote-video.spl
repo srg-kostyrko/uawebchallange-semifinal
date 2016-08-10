@@ -1,0 +1,38 @@
+(module "chat-remote-video" (stream h)
+  (all
+    (define (render webrtc)
+      (all
+        (stream:combine
+          (lambda (video$ self)
+            (all
+              (if (stream:get video$)
+                (h:div "remote-videos section group" (hash-map)
+                  (array-map
+                    (lambda (stream)
+                      (h:div "local-video col span_1_of_3" (hash-map)
+                        (array
+                          (h:video "local-video"
+                            (hash-map
+                              (attrs (hash-map
+                                (src (object-url stream))
+                                (autoplay 1)
+                              ))
+                            )
+                          )
+                        )
+                      )
+                    )
+                    (stream:get video$)
+                  )
+                )
+                (h:text "Очікую віддалених підключень...")
+              )
+            )
+          )
+          (array (. "remote-video$" webrtc))
+          1
+        )
+      )
+    )
+  )
+)

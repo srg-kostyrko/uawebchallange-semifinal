@@ -1,0 +1,22 @@
+html, body {
+    height: 100%;
+}
+body {
+    margin: 0;
+    padding: 0 2em;
+}
+.wrapper {
+  display: table;
+  height: 100%;
+  width: 100%;
+}
+video {
+  max-width: 100%;
+}
+.error {
+  background: red;
+  color: white;
+  border: 1px solid red;
+  border-radius: 3px;
+  padding: 10px;
+}
